@@ -113,14 +113,14 @@ xf0 <- function(x, gini, avg, min) x*RefLognorm(x, gini, avg, min)
 
 
 # Baseline distributions to consider for integration (!= reference when min.base>0)
-f1 <- function(x, gini.base, avg.base, min.base, d, sc) { # Assume the target d & sc are derived from TransformDistr above
-  d0 = min.base*sc + d  # Shift from min.ref
+f1 <- function(x, gini.b, avg.b, min.b, d=0, sc=1) { # Assume the target d & sc are derived from TransformDistr above
+  d0 = min.b*sc + d  # Shift from min.ref
   x0 <- (x-d0)/sc 
-  d1 <- RefLognorm(x0, gini.base, avg.base, min.base)/sc
+  d1 <- RefLognorm(x0, gini.b, avg.b, min.b)/sc
   return(d1) # returns the prob density at x
 }
-xf1 <- function(x, gini.base, avg.base, min.base, d, sc) x*f1(x, gini.base, avg.base, min.base, d, sc)
-dxf1 <- function(x, gini.base, avg.base, min.base, d, sc, offset) (offset-x)*f1(x, gini.base, avg.base, min.base, d, sc)
+xf1 <- function(x, gini.b, avg.b, min.b, d=0, sc=1) x*f1(x, gini.b, avg.b, min.b, d, sc)
+dxf1 <- function(x, gini.b, avg.b, min.b, d=0, sc=1, offset) (offset-x)*f1(x, gini.b, avg.b, min.b, d, sc)
 
 
 # Attempt to define a truncated PDF with a dirac-delta at dle.thres level, 
@@ -130,7 +130,7 @@ f1.trunc <- function(x, f, min, max, w) { #, gini.base, avg.base, min.base, d, s
   library(distr)
   x = as.matrix(x)
   
-  y = f1(x, gini.base=gini.base, avg.base=avg.base, min.base=min.base, d=0, sc=1)
+  y = f1(x, gini.base=gini.base, avg.base=avg.base, min.base=min.base)
   y = as.matrix(y)
   
   y[x>max] = 0
@@ -148,20 +148,20 @@ f1.trunc <- function(x, f, min, max, w) { #, gini.base, avg.base, min.base, d, s
 
 # Share of population under DLE
 share.subDLE <- integrate(f1, min.base, dle.thres, 
-                          gini.base, avg.base, min.base, d=0, sc=1) # Base year (d=0, sc=1), share of sub-DLE population
+                          gini.base, avg.base, min.base) # Base year (d=0, sc=1), share of sub-DLE population
 
 # Population avg = avg.base
 avg.calculated <- integrate(xf1, min.base, Inf, 
-                           gini.base, avg.base, min.base, d=0, sc=1) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
+                           gini.base, avg.base, min.base) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
 
 # SubDLE avg
 wealth.subDLE <- integrate(xf1, min.base, dle.thres, 
-                          gini.base, avg.base, min.base, d=0, sc=1) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
+                          gini.base, avg.base, min.base) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
 mean.subDLE <- wealth.subDLE$value / share.subDLE$value             # Base year, mean per capita of sub-DLE population
 
 # SubDLE gap
 gap.subDLE <- integrate(dxf1, min.base, dle.thres, 
-                           gini.base, avg.base, min.base, d=0, sc=1, offset=dle.thres) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
+                           gini.base, avg.base, min.base, offset=dle.thres) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
 mean.gap.subDLE <- gap.subDLE$value / share.subDLE$value             # Base year, mean per capita of sub-DLE population
 
 # Find top x% which can offset the sub-DLE requirement 
@@ -172,39 +172,42 @@ mean.gap.subDLE <- gap.subDLE$value / share.subDLE$value             # Base year
 thres.rich <- 80.76    # gap.subDLE = surplus.rich
               # 104.6  # wealth.subDLE = wealth.rich
 wealth.rich <- integrate(xf1, thres.rich, Inf, 
-                         gini.base, avg.base, min.base, d=0, sc=1)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
+                         gini.base, avg.base, min.base)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
 surplus.rich <- integrate(dxf1, thres.rich, Inf, 
-                         gini.base, avg.base, min.base, d=0, sc=1, offset=thres.rich)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
+                         gini.base, avg.base, min.base, offset=thres.rich)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
 share.rich <- integrate(f1, thres.rich, Inf, 
-          gini.base, avg.base, min.base, d=0, sc=1) 
+          gini.base, avg.base, min.base) 
 mean.rich <- wealth.rich$value / share.rich$value 
 
 
 # Draw the baseline distribution (to analyze top to bottom redistribution)
-X <- sort(DrawRefLognorm(1e7, gini.base, avg.base, min.base) + min.base)
+n.draw <- 1e7
+X <- sort(DrawRefLognorm(n.draw, gini.base, avg.base, min.base) + min.base)
 X.redist <- X
-X.dle <- (X - min.base)*sc[length(sc)] + dle.thres
+X.dle <- (X - min.base)*sc[length(sc)] + dle.thres # Try one example of DLE distributions
 X.redist[X.redist<dle.thres] <- dle.thres
 X.redist[X.redist>thres.rich] <- thres.rich
+X.redist.jit <- X.redist + runif(n.draw, -1, 1)*1e-4 # Add jitter since lower deciles can have identical values.
 
 Gini(X)
 Gini(X.redist)
+Gini(X.redist.jit)
 Gini(X.dle)
 
 
-# Extreme decile ratio
+# Derive extreme decile ratios
 library(Hmisc)
-# quantile(X, seq(0, 1, 0.1))
+
 dd.base <- data.frame(X, 
                  grp=cut2(X, quantile(X, seq(0, 1, 0.1))))
-dd.redist <- data.frame(X.redist, 
-                        grp=cut2(X.redist, quantile(X.redist, seq(0, 1, 0.1))))
+dd.redist <- data.frame(X.redist.jit, 
+                        grp=cut2(X.redist.jit, quantile(X.redist.jit, seq(0, 1, 0.1)), digits=8))
 dd.dle <- data.frame(X.dle, 
                      grp=cut2(X.dle, quantile(X.dle, seq(0, 1, 0.1))))
 
 dd.base %>% group_by(grp) %>% summarise(s = sum(X)) %>% 
   mutate(r = max(s)/min(s))
-dd.redist %>% group_by(grp) %>% summarise(s = sum(X.redist)) %>%
+dd.redist %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
   mutate(r = max(s)/min(s))
 dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
   mutate(r = max(s)/min(s))
@@ -218,7 +221,7 @@ dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
 
 # Test truncated distribution
 share.mid <- integrate(f1, dle.thres, thres.rich, 
-          gini.base, avg.base, min.base, d=0, sc=1)
+          gini.base, avg.base, min.base)
 w <- 1-share.mid$value
 
 integrate(f1.trunc, 0, Inf, f1, min=dle.thres, max=thres.rich, w) # ERROR: the integral is probably divergent
