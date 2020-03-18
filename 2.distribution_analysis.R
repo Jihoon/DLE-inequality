@@ -8,6 +8,7 @@ library(stats)
 library(devtools)
 source_url("https://raw.githubusercontent.com/ggrothendieck/gsubfn/master/R/list.R")
 
+source("3.functions.R")
 
 # India DLE case
 
@@ -103,36 +104,6 @@ if (distr == "lognormal") {
 }
 
 
-gtext = data.frame(xv = apply(df[-1], 2, function(x){x0[which(x==max(x, na.rm=T))]}),
-                   yv = apply(df[-1], 2, function(x) max(x, na.rm=T)+0.001),
-                   c = paste0('x', 0:5),
-                   lab = c(paste0("G[x]:", gini.base),
-                           paste0("list(G[z]:0.45, r:5.8*'%'/yr)"),
-                           paste0("list(G[z]:0.48, r:6.8*'%'/yr)"),
-                           paste0("list(G[z]:0.50, r:7.8*'%'/yr)"),
-                           paste0("list(G[z]:0.54, r:9.8*'%'/yr)"),
-                           paste0("list(G[z]:0.33, r:2.4*'%'/yr)")))
-pdf(file = paste0("India GINI illustration-", distr, ".pdf"), width = 10, height = 6)
-# Plot for Princeton w/s, May 2019
-ggplot(df %>% select(-y2) %>% gather(key=dist, value=f, -x0), aes(x=x0, y=f, color=dist)) +
-  geom_line(size=1) +
-  geom_vline(xintercept = min.base, linetype="dashed", colour="blue") +
-  geom_vline(xintercept = dle.thres, linetype="dashed", colour="brown") +
-  geom_text(aes(x=min.base, label=paste0("Actual minimum : ", min.base, "\n"), y=0.02), colour="blue", hjust=0.0, angle=90, size=4.5) +
-  geom_text(aes(x=dle.thres, label=paste0("Desired minimum : ", dle.thres, "\n"), y=0.02), colour="brown", hjust=0.0, angle=90, size=4.5) +
-  labs(x="Final energy consumption (GJ/cap)", y="Density")+
-  # geom_text(aes(x=x0[which(x0==max(x0, na.rm=T))], label=paste0("g_x: ", gini.base),   y=max(x0, na.rm=T)+0.001, colour="x0"), size=4, hjust=0.0, vjust=0.0, data=df) +
-  # geom_text(aes(x=x0[which(x1==max(x1, na.rm=T))], label=paste0("g_z: 0.45, r: 5.8%"),  y=max(x1, na.rm=T)+0.001, colour="x1"), size=4, hjust=0.0, vjust=0.0, data=df) +
-  # # geom_text(aes(x=x0[which(x2==max(x2, na.rm=T))], label=paste0("g: 0.48, r: 6.8%"),  y=max(x2, na.rm=T)+0.001, colour="x2"), size=4, hjust=0.0, vjust=0.0, data=df) +
-  # geom_text(aes(x=x0[which(x3==max(x3, na.rm=T))], label=paste0("g_z: 0.50, r: 7.8%"),  y=max(x3, na.rm=T)+0.001, colour="x3"), size=4, hjust=0.0, vjust=0.0, data=df) +
-  # geom_text(aes(x=x0[which(x4==max(x4, na.rm=T))], label=paste0("g_z: 0.54, r: 9.8%"), y=max(x4, na.rm=T)+0.001, colour="x4"), size=4, hjust=0.0, vjust=0.0, data=df) +
-  # geom_text(aes(x=x0[which(x5==max(x5, na.rm=T))], label=paste0("g_z: 0.33, r: 2.4%")), y=max(x5, na.rm=T)+0.001, colour="x5"), size=4, hjust=0.0, vjust=0.0, data=df) +
-  geom_text(data=gtext[-3,], aes(x=xv, label=lab, y=yv, colour=c), size=4, hjust=0.0, vjust=0.0, parse=TRUE) +
-  theme(legend.position = "none") +
-  xlim(c(0, 30))
-
-dev.off()
-
 
 ### Integrate distributions from above
 
@@ -149,6 +120,7 @@ f1 <- function(x, gini.base, avg.base, min.base, d, sc) { # Assume the target d 
   return(d1) # returns the prob density at x
 }
 xf1 <- function(x, gini.base, avg.base, min.base, d, sc) x*f1(x, gini.base, avg.base, min.base, d, sc)
+dxf1 <- function(x, gini.base, avg.base, min.base, d, sc, offset) (offset-x)*f1(x, gini.base, avg.base, min.base, d, sc)
 
 
 # Attempt to define a truncated PDF with a dirac-delta at dle.thres level, 
@@ -187,20 +159,59 @@ wealth.subDLE <- integrate(xf1, min.base, dle.thres,
                           gini.base, avg.base, min.base, d=0, sc=1) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
 mean.subDLE <- wealth.subDLE$value / share.subDLE$value             # Base year, mean per capita of sub-DLE population
 
+# SubDLE gap
+gap.subDLE <- integrate(dxf1, min.base, dle.thres, 
+                           gini.base, avg.base, min.base, d=0, sc=1, offset=dle.thres) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
+mean.gap.subDLE <- gap.subDLE$value / share.subDLE$value             # Base year, mean per capita of sub-DLE population
 
-# Find top x% which can offset the sub-DLE requirement (wealth.subDLE = wealth.rich)
-thres.rich <- 104.6  # For now, manually found
+# Find top x% which can offset the sub-DLE requirement 
+# What do we find? (For now, manually found)
+# (wealth.subDLE = wealth.rich) ->  No!
+# (gap.subDLE = surplus.rich)   ->  Yes!
+
+thres.rich <- 80.76    # gap.subDLE = surplus.rich
+              # 104.6  # wealth.subDLE = wealth.rich
 wealth.rich <- integrate(xf1, thres.rich, Inf, 
-          gini.base, avg.base, min.base, d=0, sc=1)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
+                         gini.base, avg.base, min.base, d=0, sc=1)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
+surplus.rich <- integrate(dxf1, thres.rich, Inf, 
+                         gini.base, avg.base, min.base, d=0, sc=1, offset=thres.rich)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
 share.rich <- integrate(f1, thres.rich, Inf, 
           gini.base, avg.base, min.base, d=0, sc=1) 
 mean.rich <- wealth.rich$value / share.rich$value 
 
 
 # Draw the baseline distribution (to analyze top to bottom redistribution)
-X <- DrawRefLognorm(1e5, gini.base, avg.base, min.base) + min.base
-X[X<dle.thres] <- dle.thres
-X[X>104.6] <- 104.6
+X <- sort(DrawRefLognorm(1e7, gini.base, avg.base, min.base) + min.base)
+X.redist <- X
+X.dle <- (X - min.base)*sc[length(sc)] + dle.thres
+X.redist[X.redist<dle.thres] <- dle.thres
+X.redist[X.redist>thres.rich] <- thres.rich
+
+Gini(X)
+Gini(X.redist)
+Gini(X.dle)
+
+
+# Extreme decile ratio
+library(Hmisc)
+# quantile(X, seq(0, 1, 0.1))
+dd.base <- data.frame(X, 
+                 grp=cut2(X, quantile(X, seq(0, 1, 0.1))))
+dd.redist <- data.frame(X.redist, 
+                        grp=cut2(X.redist, quantile(X.redist, seq(0, 1, 0.1))))
+dd.dle <- data.frame(X.dle, 
+                     grp=cut2(X.dle, quantile(X.dle, seq(0, 1, 0.1))))
+
+dd.base %>% group_by(grp) %>% summarise(s = sum(X)) %>% 
+  mutate(r = max(s)/min(s))
+dd.redist %>% group_by(grp) %>% summarise(s = sum(X.redist)) %>%
+  mutate(r = max(s)/min(s))
+dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
+  mutate(r = max(s)/min(s))
+
+# Progress 3/17/2020
+# Now I can get the decile ratio for given X. 
+# But the top-to-bottom X vector cannot get decile cuts yet, because lowest decile has all constant values (=dle.thres) and thus breaks are not unique.
 
 
 
