@@ -51,7 +51,7 @@ DrawRefLognorm <- function(n, gini, avg, min=0){
   
   # Parameters of the base log normal pdf
   sdlog_hat = qnorm((gini_baselognormal+1)/2)*sqrt(2) 
-  mlog_hat = log(avg_ene-actual.min) - (sdlog_hat^2)/2 
+  mlog_hat = log(avg-min) - (sdlog_hat^2)/2 
   
   x = rlnorm(n, mlog_hat, sdlog_hat)
   
