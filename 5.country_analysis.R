@@ -2,6 +2,13 @@
 # Countries to analyze for EL: Rwanda, Niger, India, S.Africa = RWA, NER, IND, ZAF
 ###
 
+# Note: This file extends scripts in '2.distribution_analysis.R' into function forms,
+#       so it can easily run the four-country calculations easily.
+
+library(cubature)
+library(Hmisc)
+
+source("3.functions.R")
 
 # Functions for country analysis (assume X0 and del are given)
 
@@ -77,16 +84,6 @@ GetBaselinePDF <- function(cty.data) { # For the baseline PDF and for the income
   # sc         = cty.data$sc  
   x0         = cty.data$x0
   
-  # # Baseline distributions to consider for integration (!= reference when min.base>0)
-  # f1 <- function(x, gini.base, avg.base, min.base, d=0, sc=1) { 
-  #   d0 = min.base*sc + d  # Shift from min.ref
-  #   x0 <- (x-d0)/sc 
-  #   d1 <- RefLognorm(x0, gini.base, avg.base, min.base)/sc
-  #   return(d1) # returns the prob density at x
-  # }
-  # xf1 <- function(x, gini.base, avg.base, min.base, d=0, sc=1) x*f1(x, gini.base, avg.base, min.base, d, sc)
-  # dxf1 <- function(x, gini.base, avg.base, min.base, d=0, sc=1, offset) (offset-x)*f1(x, gini.base, avg.base, min.base, d, sc)
-  
   # Share of population under DLE
   share.subDLE <- integrate(f1, min.base, dle.thres, 
                             gini.base, avg.base, min.base) # Base year (d=0, sc=1), share of sub-DLE population
@@ -105,14 +102,40 @@ GetBaselinePDF <- function(cty.data) { # For the baseline PDF and for the income
                           gini.base, avg.base, min.base, offset=dle.thres) # Base year (d=0, sc=1), total wealth of sub-DLE population (normalized)
   mean.gap.subDLE <- gap.subDLE$value / share.subDLE$value             # Base year, mean per capita of sub-DLE population
   
+  
+  # Get the rich share which can fill the subDLE gap
+  eqn=function(th) {
+    # This first integration is inverted (negative), so need to 'add'.
+    # This integration frequently gives roundoff error with 'integrate', so use 'cubintegrate' instead.
+    cubintegrate(f=dxf1, th, Inf, method = "pcubature", 
+                 gini.b=gini.base, avg.b=avg.base, min.b=min.base, offset=th)$integral +
+      integrate(dxf1, min.base, dle.thres, 
+                gini.base, avg.base, min.base, offset=dle.thres)$value
+    }
+
+  # Solve the equation and find the solution for thres.rich
+  thres.rich = uniroot(eqn, c(avg.base, avg.base*1000))$root
+  
+  # Stats for the rich population
+  wealth.rich <- cubintegrate(xf1, thres.rich, Inf, method = "pcubature", 
+                              gini.b=gini.base, avg.b=avg.base, min.b=min.base)   # Manually find x=104.6, which can compensate all sub-DLE pop with the DLE threshold value
+  share.rich <- cubintegrate(f1, thres.rich, Inf, method = "pcubature", 
+                             gini.b=gini.base, avg.b=avg.base, min.b=min.base)
+  mean.rich <- wealth.rich$integral / share.rich$integral
+                           
+  # Return list
   result = list(share.subDLE = share.subDLE, 
                 avg.calculate = avg.calculated, 
                 wealth.subDLE = wealth.subDLE, 
                 mean.subDLE = mean.subDLE, 
                 gap.subDLE = gap.subDLE, 
-                mean.gap.subDLE = mean.gap.subDLE)
+                mean.gap.subDLE = mean.gap.subDLE,
+                thres.rich = thres.rich,
+                share.rich = share.rich$integral,
+                wealth.rich = wealth.rich$integral,
+                mean.rich = mean.rich)
   
-  return(result)
+  return(list(input = cty.data, result = result))
   # Find top x% which can offset the sub-DLE requirement 
   # What do we find? (For now, manually found)
   # (wealth.subDLE = wealth.rich) ->  No!
@@ -130,6 +153,57 @@ GetBaselinePDF <- function(cty.data) { # For the baseline PDF and for the income
   
 }
 
+
+# 
+DeriveIneqStat <- function(cty.data) {
+  
+  gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
+  avg.base   = cty.data$input$data$avg.base  
+  min.base   = cty.data$input$data$min.base  
+  dle.thres  = cty.data$input$data$dle.thres
+  sc         = cty.data$input$sc
+  thres.rich = cty.data$result$thres.rich
+  
+  sc.nogrowth = (avg.base - dle.thres)/(avg.base - min.base) # from Eqn (8)
+  
+  # Draw the baseline distribution (to analyze top to bottom redistribution)
+  n.draw <- 1e7
+  X <- sort(DrawRefLognorm(n.draw, gini.base, avg.base, min.base) + min.base)
+  X.redist <- X
+  X.dle <- (X - min.base)*sc.nogrowth + dle.thres # Try one example of DLE distributions
+  X.redist[X.redist < dle.thres] <- dle.thres
+  X.redist[X.redist > thres.rich] <- thres.rich
+  X.redist.jit <- X.redist + runif(n.draw, -1, 1)*1e-4 # Add jitter since lower deciles can have identical values.
+  
+  gini.base.draw   = Gini(X)
+  gini.redist = Gini(X.redist.jit)
+  gini.dle    = Gini(X.dle)
+  
+  
+  # Derive extreme decile ratios
+  dd.base <- data.frame(X, 
+                        grp=cut2(X, quantile(X, seq(0, 1, 0.1))))
+  dd.redist <- data.frame(X.redist.jit, 
+                          grp=cut2(X.redist.jit, quantile(X.redist.jit, seq(0, 1, 0.1)), digits=9))
+  dd.dle <- data.frame(X.dle, 
+                       grp=cut2(X.dle, quantile(X.dle, seq(0, 1, 0.1))))
+  
+  dr.base = dd.base %>% group_by(grp) %>% summarise(s = sum(X)) %>% 
+    ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+  dr.redist = dd.redist %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
+    ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+  dr.dle = dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
+    ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+  
+  return(list(gini.base      = gini.base, 
+              gini.base.draw = gini.base.draw, 
+              gini.redist    = gini.redist, 
+              gini.dle       = gini.dle, 
+              dr.base        = dr.base, 
+              dr.redist      = dr.redist, 
+              dr.dle         = dr.dle))
+  
+}
 
 # Plot country baselines
 PlotCountry <- function(cty.data) {
@@ -163,9 +237,10 @@ sc.list <- lapply(country.list, GetScaler)
 y0.list <- lapply(sc.list, GetRefLognorm)
 df.list <- lapply(y0.list, GetDF)
 result.list <- lapply(df.list, GetBaselinePDF)
+ineq.list <- lapply(result.list, DeriveIneqStat)
 
 # Plot country baselines
-lapply(df.list, PlotCountry)
+# lapply(df.list, PlotCountry)
 
 
 
