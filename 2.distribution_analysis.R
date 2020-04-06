@@ -1,11 +1,3 @@
-require(reldist)
-require(ineq)
-require(stats)
-require(ggplot2)
-require(tidyverse)
-require(EnvStats)
-library(stats)
-library(devtools)
 source_url("https://raw.githubusercontent.com/ggrothendieck/gsubfn/master/R/list.R")
 
 source("3.functions.R")

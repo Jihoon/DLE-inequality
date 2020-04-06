@@ -5,8 +5,6 @@
 # Note: This file extends scripts in '2.distribution_analysis.R' into function forms,
 #       so it can easily run the four-country calculations easily.
 
-library(cubature)
-library(Hmisc)
 
 source("3.functions.R")
 

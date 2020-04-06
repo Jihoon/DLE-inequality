@@ -1,8 +1,17 @@
 library(readxl)
-# library(Hmisc)
 library(tidyverse)
 library(WDI)
 library(ggplot2)
+library(cubature)
+library(Hmisc)
+require(reldist)
+require(ineq)
+require(stats)
+require(EnvStats)
+library(stats)
+library(devtools)
+
+source("3.functions.R")
 
 ### Data import
 
@@ -169,28 +178,5 @@ ggplot(raw.gini %>% filter(name=="Slovakia"), aes(x=year, y=Gini)) + geom_point(
 
 
 
-### Some useful scripts
-mutate_cond <- function(.data, condition, ..., envir = parent.frame()) {
-  condition <- eval(substitute(condition), .data, envir)
-  .data[condition, ] <- .data[condition, ] %>% mutate(...)
-  .data
-}
-
-view <- function(data, autofilter=TRUE) {
-  # data: data frame
-  # autofilter: whether to apply a filter to make sorting and filtering easier
-  open_command <- switch(Sys.info()[['sysname']],
-                         Windows= 'open',
-                         Linux  = 'xdg-open',
-                         Darwin = 'open')
-  require(XLConnect)
-  temp_file <- paste0(tempfile(), '.xlsx')
-  wb <- XLConnect::loadWorkbook(temp_file, create = TRUE)
-  XLConnect::createSheet(wb, name = "temp")
-  XLConnect::writeWorksheet(wb, data, sheet = "temp", startRow = 1, startCol = 1)
-  if (autofilter) setAutoFilter(wb, 'temp', aref('A1', dim(data)))
-  XLConnect::saveWorkbook(wb, )
-  system(paste(open_command, temp_file))
-}
 
   
