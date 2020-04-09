@@ -112,7 +112,12 @@ GetBaselinePDF <- function(cty.data) { # For the baseline PDF and for the income
     }
 
   # Solve the equation and find the solution for thres.rich
-  thres.rich = uniroot(eqn, c(avg.base, avg.base*1000))$root
+  # When dle.thres is too high, there will be countries with no solution.
+  thres.rich = tryCatch(uniroot(eqn, c(avg.base, avg.base*1000))$root, 
+                        error = function(e) {
+                          print(paste(cty.data$data$iso3c, "has no solution for top-to-bottom redistribution."));
+                          NaN
+                        })
   
   # Stats for the rich population
   wealth.rich <- cubintegrate(xf1, thres.rich, Inf, method = "pcubature", 
@@ -162,6 +167,7 @@ DeriveIneqStat <- function(cty.data, dle.growth = "max") {
   gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$input$data$avg.base  
   min.base   = cty.data$input$data$min.base  
+  yr.base    = cty.data$input$data$year  
   dle.thres  = cty.data$input$data$dle.thres
   sc         = cty.data$input$sc
   thres.rich = cty.data$result$thres.rich
@@ -172,44 +178,55 @@ DeriveIneqStat <- function(cty.data, dle.growth = "max") {
   } else if (dle.growth == "max") {
     sc.dle = sc[1]    # sc for smallest gini change
   } else { # 10% fixed growth/year
-    sc.dle = (1.1^10 * avg.base - dle.thres)/avg.base
+    sc.dle = (1.1^(yr.target-yr.base) * avg.base - dle.thres)/avg.base
   }
   
   # Draw the baseline distribution (to analyze top to bottom redistribution)
   n.draw <- 1e7
   X <- sort(DrawRefLognorm(n.draw, gini.base, avg.base, min.base) + min.base)
-  X.redist <- X
   X.dle <- (X - min.base) * sc.dle + dle.thres # Try one example of DLE distributions
-  X.redist[X.redist < dle.thres] <- dle.thres
-  X.redist[X.redist > thres.rich] <- thres.rich
-  X.redist.jit <- X.redist + runif(n.draw, -1, 1)*1e-4 # Add jitter since lower deciles can have identical values.
-  
+
   gini.base.draw   = Gini(X)
-  gini.redist = Gini(X.redist.jit)
-  gini.dle    = Gini(X.dle)
-  
+  gini.dle    = Gini(X.dle)  
+
+  # When there is a solution for thres.rich (i.e. dle.thres is not too high)
+  if (!is.nan(thres.rich)) { 
+    X.redist <- X
+    X.redist[X.redist < dle.thres] <- dle.thres
+    X.redist[X.redist > thres.rich] <- thres.rich
+    X.redist.jit <- X.redist + runif(n.draw, -1, 1)*1e-4 # Add jitter since lower deciles can have identical values.
+    gini.redist = Gini(X.redist.jit)
+  }
   
   # Derive extreme decile ratios
   dd.base <- data.frame(X, 
                         grp=cut2(X, quantile(X, seq(0, 1, 0.1))))
-  dd.redist <- data.frame(X.redist.jit, 
-                          grp=cut2(X.redist.jit, quantile(X.redist.jit, seq(0, 1, 0.1)), digits=9))
   dd.dle <- data.frame(X.dle, 
                        grp=cut2(X.dle, quantile(X.dle, seq(0, 1, 0.1))))
   
   dr.base = dd.base %>% group_by(grp) %>% summarise(s = sum(X)) %>% 
     ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
-  dr.redist = dd.redist %>% filter(!is.na(grp)) %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
-    ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
   dr.dle = dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
     ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
   
-  means = list(mean(X), mean(X.redist.jit), mean(X.dle))
+  if (is.nan(thres.rich)) {
+    dr.redist = NaN
+    gini.redist = NaN
+  } else {
+    dd.redist <- data.frame(X.redist.jit, 
+                                   grp=cut2(X.redist.jit, quantile(X.redist.jit, seq(0, 1, 0.1)), digits=15))
+    dr.redist = dd.redist %>% filter(!is.na(grp)) %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
+                         ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+  }
   
-  growth.r = (mean(X.dle)/mean(X))^(1/10)
+  means = list(mean(X), 
+               ifelse(is.nan(thres.rich), NaN, mean(X.redist.jit)), 
+               mean(X.dle))
+  
+  growth.r = (mean(X.dle)/mean(X))^(1/(yr.target-yr.base))
   
   return(list(gini.base      = gini.base, 
-              gini.base.draw = gini.base.draw, 
+              # gini.base.draw = gini.base.draw, 
               gini.redist    = gini.redist, 
               gini.dle       = gini.dle, 
               dr.base        = dr.base, 
