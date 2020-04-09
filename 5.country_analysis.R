@@ -17,7 +17,7 @@ GetScaler <- function(cty.data) {
   dle.thres  = cty.data$dle.thres 
   
   scl = list()
-  for (dgini in seq(0.02, 0.2, 0.02)) {
+  for (dgini in seq(0.01, 0.2, 0.01)) {
     scl[[as.character(gini.base-dgini)]] = 
       TransformDistr(gini.base, gini.base-dgini, avg.base, min.base, dle.thres, 10)
   }
@@ -152,8 +152,12 @@ GetBaselinePDF <- function(cty.data) { # For the baseline PDF and for the income
 }
 
 
-# 
-DeriveIneqStat <- function(cty.data) {
+#' @param dle.growth growth constraint for the DLE redistribution case. 
+#' @details "max": maximum growth & minimum gini dev
+#' @details "no" : no growth 
+#' @details "10%" : 10% growth per year & corresponding gini dev 
+
+DeriveIneqStat <- function(cty.data, dle.growth = "max") {
   
   gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$input$data$avg.base  
@@ -162,13 +166,20 @@ DeriveIneqStat <- function(cty.data) {
   sc         = cty.data$input$sc
   thres.rich = cty.data$result$thres.rich
   
-  sc.nogrowth = (avg.base - dle.thres)/(avg.base - min.base) # from Eqn (8)
+  # Chose a scaler for the DLE counterpart
+  if (dle.growth == "no") {
+    sc.dle = (avg.base - dle.thres)/(avg.base - min.base) # from Eqn (8)
+  } else if (dle.growth == "max") {
+    sc.dle = sc[1]    # sc for smallest gini change
+  } else { # 10% fixed growth/year
+    sc.dle = (1.1^10 * avg.base - dle.thres)/avg.base
+  }
   
   # Draw the baseline distribution (to analyze top to bottom redistribution)
   n.draw <- 1e7
   X <- sort(DrawRefLognorm(n.draw, gini.base, avg.base, min.base) + min.base)
   X.redist <- X
-  X.dle <- (X - min.base)*sc.nogrowth + dle.thres # Try one example of DLE distributions
+  X.dle <- (X - min.base) * sc.dle + dle.thres # Try one example of DLE distributions
   X.redist[X.redist < dle.thres] <- dle.thres
   X.redist[X.redist > thres.rich] <- thres.rich
   X.redist.jit <- X.redist + runif(n.draw, -1, 1)*1e-4 # Add jitter since lower deciles can have identical values.
@@ -188,10 +199,14 @@ DeriveIneqStat <- function(cty.data) {
   
   dr.base = dd.base %>% group_by(grp) %>% summarise(s = sum(X)) %>% 
     ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
-  dr.redist = dd.redist %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
+  dr.redist = dd.redist %>% filter(!is.na(grp)) %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
     ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
   dr.dle = dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
     ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+  
+  means = list(mean(X), mean(X.redist.jit), mean(X.dle))
+  
+  growth.r = (mean(X.dle)/mean(X))^(1/10)
   
   return(list(gini.base      = gini.base, 
               gini.base.draw = gini.base.draw, 
@@ -199,7 +214,9 @@ DeriveIneqStat <- function(cty.data) {
               gini.dle       = gini.dle, 
               dr.base        = dr.base, 
               dr.redist      = dr.redist, 
-              dr.dle         = dr.dle))
+              dr.dle         = dr.dle,
+              growth.r       = growth.r,
+              means          = means))
   
 }
 
@@ -220,31 +237,4 @@ PlotCountry <- function(cty.data) {
 }
 
 
-####
-master.sub <- master %>% filter(iso3c %in% c('RWA', 'NER', 'IND', 'ZAF')) %>%
-  group_by(iso3c) %>% 
-  summarise_all(first) # Keep only the most recent obs.
 
-master.sub <- master.sub %>% rename(gini.base = Gini, avg.base = GDP.PCAP) %>%
-  mutate(min.base = 0, dle.thres = 1.9*365) %>% select(-(sd:ratio), -country, -region)
-
-country.list <- split(master.sub, seq(nrow(master.sub)))
-names(country.list) <- master.sub$iso3c
-
-sc.list <- lapply(country.list, GetScaler)
-y0.list <- lapply(sc.list, GetRefLognorm)
-df.list <- lapply(y0.list, GetDF)
-result.list <- lapply(df.list, GetBaselinePDF)
-ineq.list <- lapply(result.list, DeriveIneqStat)
-
-# Plot country baselines
-# lapply(df.list, PlotCountry)
-
-
-
-# Progress 3/18/2020
-# The top-to-bottom X vector decile cuts are resolved by adding jitters.
-# Now the 4-country data are being used to generate baseline distributions.
-# Need to find (manually for now) the 'rich' thresholds for each country.
-# Also derive and compare gini changes for baseline, affine, top-to-bottom cases.
-# Which affine (which sc value) to use? with more growth? (largest sc) <- sounds right
