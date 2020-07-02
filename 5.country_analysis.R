@@ -188,7 +188,8 @@ DeriveIneqStat <- function(cty.data, dle.growth = "max") {
 
   gini.base.draw   = Gini(X)
   gini.dle    = Gini(X.dle)  
-
+  gini.dle.calc = gini.base * (sc.dle * avg.base / (sc.dle * avg.base + dle.thres))  # Eqn (6)
+  
   # When there is a solution for thres.rich (i.e. dle.thres is not too high)
   if (!is.nan(thres.rich)) { 
     X.redist <- X
@@ -229,6 +230,7 @@ DeriveIneqStat <- function(cty.data, dle.growth = "max") {
               # gini.base.draw = gini.base.draw, 
               gini.redist    = gini.redist, 
               gini.dle       = gini.dle, 
+              gini.dle.calc  = gini.dle.calc,
               dr.base        = dr.base, 
               dr.redist      = dr.redist, 
               dr.dle         = dr.dle,
@@ -253,5 +255,53 @@ PlotCountry <- function(cty.data) {
   title(cty.data$data$iso3c)
 }
 
+PlotIndiffCurve <- function(cty.data) {
+  gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
+  avg.base   = cty.data$input$data$avg.base  
+  min.base   = cty.data$input$data$min.base  
+  yr.base    = cty.data$input$data$year  
+  dle.thres  = cty.data$input$data$dle.thres
+  sc         = cty.data$input$sc
+  
+  # avg.new    = sc * avg.base + dle.thres
+  thres.seq  = seq(1.9*365, dle.thres, 500)
+  
+  # growth.r = (avg.new/avg.base)^(1/(yr.target-yr.base))
+  # gini.dle.calc = gini.base * (avg.new - dle.thres) / avg.new
+  
+  l = list(thres = thres.seq, sc = sc)
+  df = expand.grid(l) %>% mutate(avg.new = sc * avg.base + thres) %>%
+    mutate(growth.r = (avg.new/avg.base)^(1/(yr.target-yr.base)) - 1) %>%
+    mutate(gini.dle.calc = gini.base * (avg.new - thres) / avg.new)  
+  
+  # historical %>% left_join(master.sub) %>% filter(!is.na(gini.base))
+  p = ggplot() +
+    geom_line(data=df, aes(gini.dle.calc,  growth.r, group = thres)) +
+    geom_point(data=historical %>% filter(iso3c == cty.data$input$data$iso3c), 
+               aes(gini/100, gr/100, colour = recent), size=3) +
+    geom_text(data=historical %>% filter(iso3c == cty.data$input$data$iso3c), 
+              aes(gini/100 - 0.01, gr/100, label = year)) +
+    labs(title=cty.data$input$data$iso3c) + scale_x_reverse() 
+  
+  # if is.nan(gini.redist) {
+  #   p = p + geom_segment(aes(x = gini.base, y = 0, xend = gini.redist, yend = 0), arrow = arrow(length = unit(0.03, "npc")))
+  # }
+  
+  # print(p)
+  return(p)
+}
 
+
+AddRedistLine <- function(p, ineq) {
+  gini.base   = ineq$gini.base  # WDI has pct values.
+  gini.redist = ineq$gini.redist  # WDI has pct values.
+  
+  if (!is.nan(gini.redist)) {
+    p = p + geom_segment(aes(x = gini.base, y = 0, xend = gini.redist, yend = 0), 
+                         arrow = arrow(length = unit(0.03, "npc"))) +
+      geom_point(data= data.frame(x = c(gini.base, gini.redist), y=0), aes(x, y), size=3)
+  }
+  
+  return(p)
+}
 
