@@ -30,9 +30,10 @@ GetRefLognorm <- function(cty.data) {
   gini.base  = cty.data$data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$data$avg.base  
   min.base   = cty.data$data$min.base 
+  dle.thres   = cty.data$data$dle.thres 
   
   # X domain dependent on country distribution
-  del = avg.base*1e3/12000 # x interval 
+  del = dle.thres*1e3/12000 # x interval (based on dle.thres to make the shifted distribution start right from )
   x0 = seq(0, avg.base*1e3, del)
   
   y0 = RefLognorm(x0, gini.base, avg.base, min.base) 
@@ -50,7 +51,8 @@ GetDF <- function(cty.data) {
   min.base  = cty.data$data$min.base  
   avg.base  = cty.data$data$avg.base  
   
-  del = avg.base*1e3/12000 # x interval 
+  # del should be defined based on dle.thres, to make the shifted distribution start exactly from dle.thres. (x0 coordinate) 
+  del = dle.thres*1e3/12000 # x interval 
   x0 = seq(0, avg.base*1e3, del)
   
   xmat = sapply(sc, function(s) x0*s)
@@ -256,6 +258,8 @@ PlotCountry <- function(cty.data) {
 }
 
 PlotIndiffCurve <- function(cty.data) {
+  library(directlabels)
+  
   gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$input$data$avg.base  
   min.base   = cty.data$input$data$min.base  
@@ -264,7 +268,8 @@ PlotIndiffCurve <- function(cty.data) {
   sc         = cty.data$input$sc
   
   # avg.new    = sc * avg.base + dle.thres
-  thres.seq  = seq(1.9*365, dle.thres, 500)
+  # thres.seq  = seq(1.9*365, dle.thres, 500) # Let's not use 1.9/day threshold
+  thres.seq  = seq(dle.thres, 0, -500)[1:4] # dle.thres is based on low-income countries' mean at yr.base.
   
   # growth.r = (avg.new/avg.base)^(1/(yr.target-yr.base))
   # gini.dle.calc = gini.base * (avg.new - dle.thres) / avg.new
@@ -281,13 +286,16 @@ PlotIndiffCurve <- function(cty.data) {
                aes(gini/100, gr/100, colour = recent), size=3) +
     geom_text(data=historical %>% filter(iso3c == cty.data$input$data$iso3c), 
               aes(gini/100 - 0.01, gr/100, label = year)) +
-    labs(title=cty.data$input$data$iso3c) + scale_x_reverse() 
+    labs(title=countrycode(cty.data$input$data$iso3c, 'iso3c', 'country.name')) + scale_x_reverse() +
+    labs(x = "Gini index", y = "Annual average growth rate") +
+    scale_color_discrete(name = "Year", labels = c("Past", "Latest")) +
+    theme(legend.position = c(.95, .95),
+          legend.justification = c("right", "top")) +
+    # Add threshold value labels
+    geom_dl(data=df, aes(gini.dle.calc,  growth.r, 
+                         label = paste0('$', format(thres/365, digits=2), '/day')), 
+            method = list("last.points", dl.trans(x=x-1.2, y=y+0.5)), cex = 0.7)
   
-  # if is.nan(gini.redist) {
-  #   p = p + geom_segment(aes(x = gini.base, y = 0, xend = gini.redist, yend = 0), arrow = arrow(length = unit(0.03, "npc")))
-  # }
-  
-  # print(p)
   return(p)
 }
 
