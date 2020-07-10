@@ -29,10 +29,11 @@ raw.wiid <- read_xlsx("WIID_19Dec2018.xlsx") %>% filter(source_comments == "Povc
   rename(iso3c=c3,  Gini=gini_reported, Country=country) %>% 
   select(iso3c, year, Country, Gini, starts_with('source')) %>% arrange(iso3c, -year)
 
-# GDP per cap
+# GDP per cap, PPP (constant 2017 international $)
 raw.gdp.pcap <- WDI(country = "all", indicator = "NY.GDP.PCAP.PP.KD", 
                     start = 1990, end = 2019, extra = TRUE, cache = NULL) %>%
-  filter(region!="Aggregates") %>% select(-iso2c, -(capital:lending)) 
+  # filter(region!="Aggregates") %>% 
+  select(-iso2c, -(capital:lending)) 
 names(raw.gdp.pcap)[2] <- 'GDP.PCAP'
 
 raw.pop <- WDI(country = "all", indicator = "SP.POP.TOTL", 
