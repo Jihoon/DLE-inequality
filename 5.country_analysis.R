@@ -10,6 +10,8 @@ source("3.functions.R")
 
 # Functions for country analysis (assume X0 and del are given)
 
+
+# Derive a scaling factor to achieve dle.thres
 GetScaler <- function(cty.data) {
   gini.base  = cty.data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$avg.base  
@@ -17,7 +19,8 @@ GetScaler <- function(cty.data) {
   dle.thres  = cty.data$dle.thres 
   
   scl = list()
-  for (dgini in seq(0.01, 0.2, 0.01)) {
+  for (dgini in c(seq(0.001, 0.009, 0.0005), seq(0.01, 0.15, 0.01))) {
+  # for (dgini in seq(0.01, 0.2, 0.01)) {
     scl[[as.character(gini.base-dgini)]] = 
       TransformDistr(gini.base, gini.base-dgini, avg.base, min.base, dle.thres, 10)
   }
@@ -266,10 +269,18 @@ PlotIndiffCurve <- function(cty.data) {
   yr.base    = cty.data$input$data$year  
   dle.thres  = cty.data$input$data$dle.thres
   sc         = cty.data$input$sc
+  iso        = cty.data$input$data$iso3c
   
+  ylim_vals = case_when(
+    iso == "IND" ~ c(-0.05, 0.23),
+    iso == "RWA" ~ c(0, 0.35),
+    iso == "NER" ~ c(-0.03, 0.37),
+    iso == "ZAF" ~ c(-0.07, 0.20)
+  )
   # avg.new    = sc * avg.base + dle.thres
-  # thres.seq  = seq(1.9*365, dle.thres, 500) # Let's not use 1.9/day threshold
-  thres.seq  = seq(dle.thres, 0, -500)[1:4] # dle.thres is based on low-income countries' mean at yr.base.
+  
+  # thres.seq constructed based on 2017-adjusted $1.9/day (2011) and low-income countries' mean (WB) at yr.base (2016).
+  thres.seq  = seq(lowest.thres, gdp.thres, length.out = 4) 
   
   # growth.r = (avg.new/avg.base)^(1/(yr.target-yr.base))
   # gini.dle.calc = gini.base * (avg.new - dle.thres) / avg.new
@@ -282,19 +293,20 @@ PlotIndiffCurve <- function(cty.data) {
   # historical %>% left_join(master.sub) %>% filter(!is.na(gini.base))
   p = ggplot() +
     geom_line(data=df, aes(gini.dle.calc,  growth.r, group = thres)) +
-    geom_point(data=historical %>% filter(iso3c == cty.data$input$data$iso3c), 
-               aes(gini/100, gr/100, colour = recent), size=3) +
-    geom_text(data=historical %>% filter(iso3c == cty.data$input$data$iso3c), 
+    geom_point(data=historical %>% filter(iso3c == iso), 
+               aes(gini/100, gr/100, colour = recent), size=2) +
+    geom_text(data=historical %>% filter(iso3c == iso), 
               aes(gini/100 - 0.01, gr/100, label = year)) +
-    labs(title=countrycode(cty.data$input$data$iso3c, 'iso3c', 'country.name')) + scale_x_reverse() +
+    labs(title=countrycode(iso, 'iso3c', 'country.name')) + scale_x_reverse() +
     labs(x = "Gini index", y = "Annual average growth rate") +
-    scale_color_discrete(name = "Year", labels = c("Past", "Latest")) +
+    scale_color_brewer(name = "Year", palette = "Set2") +
     theme(legend.position = c(.95, .95),
           legend.justification = c("right", "top")) +
     # Add threshold value labels
     geom_dl(data=df, aes(gini.dle.calc,  growth.r, 
                          label = paste0('$', format(thres/365, digits=2), '/day')), 
-            method = list("last.points", dl.trans(x=x-1.2, y=y+0.5)), cex = 0.7)
+            method = list("last.points", dl.trans(x=x-1.2, y=y+0.5)), cex = 0.7) +
+    ylim(ylim_vals)
   
   return(p)
 }
@@ -304,10 +316,15 @@ AddRedistLine <- function(p, ineq) {
   gini.base   = ineq$gini.base  # WDI has pct values.
   gini.redist = ineq$gini.redist  # WDI has pct values.
   
+  df = data.frame(x = c(gini.base, gini.redist), y=0)
+  print(df)
+  
+  library(ggrepel)
   if (!is.nan(gini.redist)) {
     p = p + geom_segment(aes(x = gini.base, y = 0, xend = gini.redist, yend = 0), 
-                         arrow = arrow(length = unit(0.03, "npc"))) +
-      geom_point(data= data.frame(x = c(gini.base, gini.redist), y=0), aes(x, y), size=3)
+                         arrow = arrow(ends = "both", angle=90,  length = unit(0.01, "npc"))) +
+      # geom_point(data = df, aes(x, y), size=2) +
+      geom_text_repel(data = df, aes(x, y, label = formatC(x, digits = 4)), direction="x", segment.alpha=0.5)
   }
   
   return(p)
