@@ -1,12 +1,20 @@
 
 source("5.country_analysis.R")
 
-yr.target <- 2030
+yr.target <- 2030 #2050 #
 yr.base <- 2016
 
 historical <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = c("NY.GDP.PCAP.KD.ZG", "SI.POV.GINI")) %>% 
   mutate(iso3c = countrycode(iso2c, 'iso2c', 'iso3c'))  %>% rename(gr = NY.GDP.PCAP.KD.ZG, gini = SI.POV.GINI) %>% 
-  filter(!is.na(gini)) %>% group_by(iso3c) %>% mutate(recent = (year == max(year))) %>% ungroup()
+  filter(year <= yr.base) %>%
+  group_by(iso3c) 
+
+historical <- historical %>%
+  filter(!is.na(gini)) %>% mutate(recent = ifelse(year == max(year), "Latest", "Past")) %>%
+  rbind(historical %>% filter(iso3c=="IND", year==yr.base) %>% mutate(gini=37.8, recent="Assumed")) %>%
+  arrange(country) %>% mutate(recent = factor(recent, levels=c("Latest", "Past", "Assumed")))
+  
+
 
 ####
 
@@ -14,29 +22,22 @@ historical <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = c("NY.GDP.PCA
 gdp.pcap.base <- raw.gdp.pcap %>% filter(iso3c %in% c('RWA', 'NER', 'IND', 'ZAF', 'LIC'), year == yr.base) %>%
   rename(avg.base=GDP.PCAP) %>% select(-region, -country)
 
+# Threshold for average of 'low income' country groups
 gdp.thres <- gdp.pcap.base %>% filter(iso3c=="LIC") %>% select(avg.base) %>% as.numeric()
 
-# master.sub <- master %>% filter(iso3c %in% c('RWA', 'NER', 'IND', 'ZAF')) %>%
-#   group_by(iso3c) %>% 
-#   summarise_all(first) # Keep only the most recent obs.
-# 
-# master.sub <- master.sub %>% rename(gini.base = Gini, avg.base = GDP.PCAP) %>%
-#   # mutate(min.base = 0, dle.thres = 1.9*365) %>% 
-#   mutate(min.base = 0, dle.thres = gdp.thres) %>% # mean of 'low-income' countries https://data.worldbank.org/indicator/NY.GDP.PCAP.PP.KD?locations=XM
-#   select(-(sd:ratio), -country, -region)
+scaler_1.9 <- WDI(country = c("IN", "RW"), indicator = c("NY.GDP.DEFL.KD.ZG"), start=2012, end = yr.base) %>% 
+  rename(r=NY.GDP.DEFL.KD.ZG) %>% mutate(r=r/100+1) %>% group_by(country) %>% summarise(r.tot = prod(r)) %>% 
+  ungroup() %>% summarise(r = mean(r.tot))
 
-# 02 Jul 2020. We decide to use only WB values for consistency.
+# Threshold for equivalant of 1.9$/day for yr.base (2016)
+lowest.thres <- as.numeric(1.9 * scaler_1.9 * 365)
 
-# master.sub.wb <- master.sub %>% full_join(historical %>% filter(recent)) %>%
-#   mutate(gini.base = coalesce(gini, gini.base)) %>% 
-#   left_join(raw.gdp.pcap) %>%
-#   mutate(avg.base = coalesce(avg.base, GDP.PCAP), min.base = 0, dle.thres = gdp.thres) %>% # source given above
-#   select(names(master.sub)) %>% group_by(iso3c) %>%
-#   filter(year == max(year))
+
 
 master.sub.wb <- gdp.pcap.base %>% filter(iso3c != "LIC") %>% 
-  left_join(historical%>% filter(recent) %>% select(iso3c, gini), by="iso3c") %>%
+  left_join(historical %>% filter(recent=="Latest") %>% select(iso3c, gini), by="iso3c") %>%
   mutate(min.base=0, dle.thres = gdp.thres) %>%
+  # mutate(min.base=0, dle.thres = lowest.thres) %>%
   rename(gini.base = gini) %>% select(iso3c, year, everything())
 
 country.list <- split(master.sub.wb, seq(nrow(master.sub.wb)))
@@ -51,8 +52,10 @@ ineq.list <- lapply(result.list, DeriveIneqStat, dle.growth="max") # dle.growth=
 p.list <- lapply(result.list, PlotIndiffCurve) 
 p.list.redist <- mapply(AddRedistLine, p.list, ineq.list, SIMPLIFY = FALSE) 
 p.list.redist[[1]]
+p.list.redist[[3]]
+
 ExportPDFPlot <- function(name) {
-  pdf(file = paste0("plots/Growth-Gini plot ", name, ".pdf"), width = 10, height = 6)
+  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,".pdf"), width = 10, height = 6)
   print(p.list.redist[[name]])
   dev.off()
 }
