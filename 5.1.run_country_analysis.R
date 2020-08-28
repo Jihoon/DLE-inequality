@@ -36,8 +36,8 @@ lowest.thres <- as.numeric(1.9 * scaler_1.9 * 365)
 
 master.sub.wb <- gdp.pcap.base %>% filter(iso3c != "LIC") %>% 
   left_join(historical %>% filter(recent=="Latest") %>% select(iso3c, gini), by="iso3c") %>%
-  mutate(min.base=0, dle.thres = gdp.thres) %>%
-  # mutate(min.base=0, dle.thres = lowest.thres) %>%
+  mutate(min.base=0, dle.thres = gdp.thres) %>%   # This is for plotting IND illustrative lognorm curves.
+  # mutate(min.base=0, dle.thres = lowest.thres) %>%  # This is for plotting indifference curve sets.
   rename(gini.base = gini) %>% select(iso3c, year, everything())
 
 country.list <- split(master.sub.wb, seq(nrow(master.sub.wb)))
@@ -56,7 +56,8 @@ p.list.redist[[3]]
 
 ExportPDFPlot <- function(name) {
   pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,".pdf"), width = 10, height = 6)
-  print(p.list.redist[[name]])
+  # print(p.list[[name]])       # Not add the no-growth line (for 2050)
+  print(p.list.redist[[name]])  # Add the no-growth line (for 2030)
   dev.off()
 }
 sapply(names(p.list.redist), ExportPDFPlot)

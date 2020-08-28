@@ -19,7 +19,7 @@ GetScaler <- function(cty.data) {
   dle.thres  = cty.data$dle.thres 
   
   scl = list()
-  for (dgini in c(seq(0.001, 0.009, 0.0005), seq(0.01, 0.15, 0.01))) {
+  for (dgini in c(seq(0.0001, 0.009, 0.0001), seq(0.0091, 0.15, 0.005))) {
   # for (dgini in seq(0.01, 0.2, 0.01)) {
     scl[[as.character(gini.base-dgini)]] = 
       TransformDistr(gini.base, gini.base-dgini, avg.base, min.base, dle.thres, 10)
@@ -324,7 +324,7 @@ AddRedistLine <- function(p, ineq) {
     p = p + geom_segment(aes(x = gini.base, y = 0, xend = gini.redist, yend = 0), 
                          arrow = arrow(ends = "both", angle=90,  length = unit(0.01, "npc"))) +
       # geom_point(data = df, aes(x, y), size=2) +
-      geom_text_repel(data = df, aes(x, y, label = formatC(x, digits = 4)), direction="x", segment.alpha=0.5)
+      geom_text_repel(data = df, aes(x, y, label = formatC(x, digits = 3)), direction="x", segment.alpha=0, nudge_y = -0.01)
   }
   
   return(p)
