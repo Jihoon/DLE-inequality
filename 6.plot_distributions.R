@@ -28,7 +28,7 @@ ggplot(df.plot.l, aes(x=x0, y=value, color=dist)) +
   geom_vline(xintercept = df.data$dle.thres, linetype="dashed", colour="brown") +
   geom_text(aes(x=df.data$dle.thres, label=paste0("Desired minimum : $", format(df.data$dle.thres/365, digits=2), "/day", "\n"), y=1e-4), 
             colour="brown", hjust=0.0, angle=90, size=4.5) +
-  labs(x="GDP per capita ($/cap)", y="Density")+
+  labs(x="GDP per capita ($/cap)", y="Density (population share)")+
   geom_text(data=gtext, aes(x=xv, label=lab, y=yv, colour=dist), size=4, hjust=0.0, vjust=0.0, parse=TRUE) +
   theme(legend.position = "none") 
 
