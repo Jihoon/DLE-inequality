@@ -163,11 +163,15 @@ GetBaselinePDF <- function(cty.data) { # For the baseline PDF and for the income
 
 
 #' @param dle.growth growth constraint for the DLE redistribution case. 
-#' @details "max": maximum growth & minimum gini dev
-#' @details "no" : no growth 
-#' @details "10%" : 10% growth per year & corresponding gini dev 
-
-DeriveIneqStat <- function(cty.data, dle.growth = "max") {
+#' @details "max"   : maximum growth & minimum gini dev
+#' @details "no"    : no growth 
+#' @details "grow"  : specific growth given by growth.r
+#' @param dr.type one more inequality index besides Gini 
+#' @details "Palma" : Share of top 10% / Share of bottom 40% 
+#' @details "D9_D1" : 90% percentile / 10% percentile 
+#' @details "10to1" : Share of top 10% / Share of bottom 10% 
+#' @param growth.r custom annual growth rate 
+DeriveIneqStat <- function(cty.data, dle.growth = "grow", dr.type = "Palma", growth.r = 0.05) {
   
   gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$input$data$avg.base  
@@ -183,7 +187,7 @@ DeriveIneqStat <- function(cty.data, dle.growth = "max") {
   } else if (dle.growth == "max") {
     sc.dle = sc[1]    # sc for smallest gini change
   } else { # 10% fixed growth/year
-    sc.dle = (1.1^(yr.target-yr.base) * avg.base - dle.thres)/avg.base
+    sc.dle = ((1+growth.r)^(yr.target-yr.base) * avg.base - dle.thres)/avg.base
   }
   
   # Draw the baseline distribution (to analyze top to bottom redistribution)
@@ -207,22 +211,55 @@ DeriveIneqStat <- function(cty.data, dle.growth = "max") {
   # Derive extreme decile ratios
   dd.base <- data.frame(X, 
                         grp=cut2(X, quantile(X, seq(0, 1, 0.1))))
-  dd.dle <- data.frame(X.dle, 
+  dd.dle <- data.frame(X = X.dle, 
                        grp=cut2(X.dle, quantile(X.dle, seq(0, 1, 0.1))))
   
-  dr.base = dd.base %>% group_by(grp) %>% summarise(s = sum(X)) %>% 
-    ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
-  dr.dle = dd.dle %>% group_by(grp) %>% summarise(s = sum(X.dle)) %>%
-    ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+  
+  Palma <- function(df) {
+    dr = df %>% group_by(grp) %>% summarise(s = sum(X)) %>% ungroup() %>%
+      slice(c(1:4, 10)) %>% 
+      mutate(cat = ifelse(row_number()==5, "top10", "bottom40")) %>% group_by(cat) %>%
+      summarise(s.palma = sum(s)) %>% summarise(dr = s.palma[2]/s.palma[1]) %>% as.numeric()
+    return(dr)
+  }
+ 
+  DR10to1 <- function(df) {
+    dr = dd.base %>% group_by(grp) %>% 
+      summarise(s = sum(X)) %>% 
+      ungroup() %>% 
+      summarise(dr = max(s)/min(s)) %>% as.numeric()
+    return(dr)
+  }
+  
+  D9_D1 <- function(df) {
+    dr = quantile(df$X, .9) / quantile(df$X, .1)
+    return(dr)
+  }
+  
+  if (dr.type == "10to1") {
+    dr.base = DR10to1(dd.base)
+    dr.dle = DR10to1(dd.dle)
+  } else if (dr.type == "D9_D1") {
+    dr.base = D9_D1(dd.base)
+    dr.dle = D9_D1(dd.dle)
+  } else if (dr.type == "Palma") {
+    dr.base = Palma(dd.base)
+    dr.dle = Palma(dd.dle)
+  }
   
   if (is.nan(thres.rich)) {
     dr.redist = NaN
     gini.redist = NaN
   } else {
-    dd.redist <- data.frame(X.redist.jit, 
+    dd.redist <- data.frame(X = X.redist.jit, 
                                    grp=cut2(X.redist.jit, quantile(X.redist.jit, seq(0, 1, 0.1)), digits=15))
-    dr.redist = dd.redist %>% filter(!is.na(grp)) %>% group_by(grp) %>% summarise(s = sum(X.redist.jit)) %>%
-                         ungroup() %>% summarise(dr = max(s)/min(s)) %>% as.numeric()
+    if (dr.type == "10to1") {
+      dr.redist = DR10to1(dd.redist)
+    } else if (dr.type == "D9_D1") {
+      dr.redist = D9_D1(dd.redist)
+    } else if (dr.type == "Palma") {
+      dr.redist = Palma(dd.redist)
+    }
   }
   
   means = list(mean(X), 
