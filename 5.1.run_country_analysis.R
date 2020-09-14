@@ -49,7 +49,14 @@ sc.list <- lapply(country.list, GetScaler)
 y0.list <- lapply(sc.list, GetRefLognorm)
 df.list <- lapply(y0.list, GetDF)
 result.list <- lapply(df.list, GetBaselinePDF) # This is where distribution type needs to be specified. Before this, it doesn't know about distribution.
-ineq.list <- lapply(result.list, DeriveIneqStat, dle.growth="max") # dle.growth= "10%" | "no" | "max"
+
+# Param choices: dle.growth= "grow" | "no" | "max", dr.type = "Palma" | "D9_D1" | "10to1"
+ineq.list <- lapply(result.list, DeriveIneqStat, dle.growth="max", dr.type = "Palma") # Maximum possible growth for the affine case
+# Set specific growth rate given by growth.r (annual per-cap growth)
+# 5.4% and 4.8% taken from the manuscript (2006-2016 average)
+ineq.IND <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma", growth.r = 0.075)
+ineq.IND.10 <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma", growth.r = 0.1)
+ineq.RWA <- DeriveIneqStat(result.list$RWA, dle.growth="grow", dr.type = "Palma", growth.r = 0.048)
 
 p.list <- lapply(result.list, PlotIndiffCurve) 
 p.list.redist <- mapply(AddRedistLine, p.list, ineq.list, SIMPLIFY = FALSE) 
