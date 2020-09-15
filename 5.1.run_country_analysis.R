@@ -10,9 +10,10 @@ historical <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = c("NY.GDP.PCA
   group_by(iso3c) 
 
 historical <- historical %>%
-  filter(!is.na(gini)) %>% mutate(recent = ifelse(year == max(year), "Latest", "Past")) %>%
-  rbind(historical %>% filter(iso3c=="IND", year==yr.base) %>% mutate(gini=37.8, recent="Assumed")) %>%
-  arrange(country) %>% mutate(recent = factor(recent, levels=c("Latest", "Past", "Assumed")))
+  filter(!is.na(gini)) %>%
+  rbind(historical %>% filter(iso3c=="IND", year==yr.base) %>% mutate(gini=37.8)) %>%
+  mutate(recent = ifelse(year == max(year), "Latest", "Past")) %>%
+  arrange(country) # %>% mutate(recent = factor(recent, levels=c("Latest", "Past", "Assumed")))
   
 
 
