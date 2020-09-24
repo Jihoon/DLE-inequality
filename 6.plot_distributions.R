@@ -1,22 +1,22 @@
 # Data for India from the analysis from 5.1
 # Plot this for more illustrative threshold = gdp.thres
-df.plot <- df.list$IND$df %>% select(x0, y0, y117, y107, y99, y92) 
+df.plot <- df.list$IND$df %>% select(x0, y0, y107, y101, y96, y92) 
 df.data <- df.list$IND$data
-df.sc <- df.list$IND$sc[c(117, 107, 99, 92)]
+df.sc <- df.list$IND$sc[c(107, 101, 96, 92)]
 names(df.sc) # corresponding gini values
 # g = df.data$gini.base * df.sc * df.data$avg.base / (df.sc * df.data$avg.base + df.data$dle.thres)
 growth.r <- (((df.sc * df.data$avg.base + df.data$dle.thres) / df.data$avg.base) ^(1/(yr.target-yr.base)) - 1)*100
   
 gtext = data.frame(xv = apply(df.plot[-1], 2, function(x){df.plot$x0[which(x==max(x, na.rm=T))]}),
                    yv = apply(df.plot[-1], 2, function(x) max(x, na.rm=T)+0.00001),
-                   dist = c("y0", "y117", "y107", "y99", "y92"),
+                   dist = c("y0", "y107", "y101", "y96", "y92"),
                    lab = c(paste0("G[x]:", format(df.data$gini.base/100, digits=2)),
                            paste0("list(G[z]:", format(as.numeric(names(df.sc)), digits=2), 
                                   ", r:", format(growth.r, digits =1), "*'%'/yr)")))
 
 
 # Export to PDF
-pdf(file = paste0("plots/India GINI illustration-", distr, " ", yr.target, ".pdf"), width = 10, height = 6)
+pdf(file = paste0("plots/India GINI illustration-", distr, " ", yr.target, "b.pdf"), width = 10, height = 6)
 
 df.plot.l <- df.plot %>%  pivot_longer(-x0, names_to="dist") %>%
   mutate(type = ifelse(dist=="y0", "base", "new")) # For line type setting
