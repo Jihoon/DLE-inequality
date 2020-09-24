@@ -317,7 +317,7 @@ PlotIndiffCurve <- function(cty.data) {
   # avg.new    = sc * avg.base + dle.thres
   
   # thres.seq constructed based on 2017-adjusted $1.9/day (2011) and low-income countries' mean (WB) at yr.base (2016).
-  thres.seq  = seq(lowest.thres, gdp.thres, length.out = 2) 
+  thres.seq  = seq(thres1[[iso]], thres2[[iso]], length.out = 2) 
   
   # growth.r = (avg.new/avg.base)^(1/(yr.target-yr.base))
   # gini.dle.calc = gini.base * (avg.new - dle.thres) / avg.new
