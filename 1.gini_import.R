@@ -150,7 +150,7 @@ Gini.slope.summary <- Gini.slope.master %>% arrange(name, slope10) %>% summarise
 Gini.slope.plot <- Gini.slope.summary %>% filter(n.obs>3) %>% 
   # group_by(region) %>% 
   arrange(min.slope) %>% slice(1:15) %>% mutate(period=paste0(init.year, "-", init.year+9))
-view(Gini.slope.plot)
+# view(Gini.slope.plot)
 # Show the top-3 countries under certain starting Gini
 View(Gini.slope.summary %>% filter(init.Gini<=40 & n.obs>3) %>% group_by(region) %>% arrange(region, min.slope) %>% slice(1:3))
 
