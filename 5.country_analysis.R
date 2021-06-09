@@ -299,20 +299,23 @@ PlotCountry <- function(cty.data) {
 
 PlotIndiffCurve <- function(cty.data) {
   library(directlabels)
-  
-  gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
-  avg.base   = cty.data$input$data$avg.base  
-  min.base   = cty.data$input$data$min.base  
-  yr.base    = cty.data$input$data$year  
-  dle.thres  = cty.data$input$data$dle.thres
-  sc         = cty.data$input$sc
-  iso        = cty.data$input$data$iso3c
+
+  gini.base  = cty.data$data$gini.base/100  # WDI has pct values.
+  avg.base   = cty.data$data$avg.base  
+  min.base   = cty.data$data$min.base  
+  yr.base    = cty.data$data$year  
+  dle.thres  = cty.data$data$dle.thres
+  sc         = cty.data$sc
+  iso        = cty.data$data$iso3c
   
   ylim_vals = case_when(
     iso == "IND" ~ c(-0.05, 0.23),
-    iso == "RWA" ~ c(0, 0.35),
-    iso == "NER" ~ c(-0.03, 0.37),
-    iso == "ZAF" ~ c(-0.07, 0.20)
+    # iso == "RWA" ~ c(0, 0.35),
+    # iso == "NER" ~ c(-0.03, 0.37),
+    # iso == "ZAF" ~ c(-0.07, 0.20),
+    iso == "USA" ~ c(-0.05, 0.23),
+    iso == "JPN" ~ c(-0.05, 0.35),
+    iso == "CHN" ~ c(-0.03, 0.37)
   )
   # avg.new    = sc * avg.base + dle.thres
   
@@ -335,7 +338,7 @@ PlotIndiffCurve <- function(cty.data) {
     geom_text(data=historical %>% filter(iso3c == iso), 
               aes(gini/100 - 0.01, gr/100, label = year)) +
     labs(title=countrycode(iso, 'iso3c', 'country.name')) + scale_x_reverse() +
-    labs(x = "Gini index", y = "Annual average growth rate") +
+    labs(x = "Gini index", y = paste("Annual average growth rate by", yr.target)) +
     scale_color_brewer(name = "Year", palette = "Set2") +
     theme(legend.position = c(.95, .95),
           legend.justification = c("right", "top")) +
@@ -363,6 +366,18 @@ AddRedistLine <- function(p, ineq) {
       # geom_point(data = df, aes(x, y), size=2) +
       geom_text_repel(data = df, aes(x, y, label = formatC(x, digits = 3)), direction="x", segment.alpha=0, nudge_y = -0.01)
   }
+  
+  return(p)
+}
+
+
+AddGrowthLine <- function(p, grate) {
+  scen = grate$variable 
+  r = grate$r.growth  
+  
+  p = p + geom_hline(aes(yintercept=r, linetype=scen), color = c("blue", "red", "green")) +
+    scale_linetype_manual(name = "Scenario", values = c(2, 2, 2), 
+                          guide = guide_legend(override.aes = list(color = c("blue", "red", "green"))))
   
   return(p)
 }

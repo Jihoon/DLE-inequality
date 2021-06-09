@@ -1,10 +1,13 @@
 
 source("5.country_analysis.R")
 
-yr.target <- 2030 #2050 #
+yr.target <- 2040 #2050 #
 yr.base <- 2016
 
-historical <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = c("NY.GDP.PCAP.KD.ZG", "SI.POV.GINI")) %>% 
+country_selected_iso2 <- c("IN", "JP", "CN", "US")
+country_selected_iso3 <- countrycode(country_selected_iso2, 'iso2c', 'iso3c')
+
+historical <- WDI(country = country_selected_iso2, indicator = c("NY.GDP.PCAP.KD.ZG", "SI.POV.GINI")) %>% 
   mutate(iso3c = countrycode(iso2c, 'iso2c', 'iso3c'))  %>% rename(gr = NY.GDP.PCAP.KD.ZG, gini = SI.POV.GINI) %>% 
   filter(year <= yr.base) %>%
   group_by(iso3c) 
@@ -20,18 +23,18 @@ historical <- historical %>%
 ####
 
 # Harmonize the base year for gdp.pcap to yr.base
-gdp.pcap.base <- raw.gdp.pcap %>% filter(iso3c %in% c('RWA', 'NER', 'IND', 'ZAF', 'LIC'), year == yr.base) %>%
+gdp.pcap.base <- raw.gdp.pcap %>% filter(iso3c %in% append(country_selected_iso3, 'LIC'), year == yr.base) %>%
   rename(avg.base=GDP.PCAP) %>% select(-region, -country)
 
-# Threshold for average of 'low income' country groups
-gdp.thres <- gdp.pcap.base %>% filter(iso3c=="LIC") %>% select(avg.base) %>% as.numeric()
+# # Threshold for average of 'low income' country groups
+# gdp.thres <- gdp.pcap.base %>% filter(iso3c=="LIC") %>% select(avg.base) %>% as.numeric()
 
-scaler_infl <- WDI(country = c("IN", "RW"), indicator = c("NY.GDP.DEFL.KD.ZG"), start=2012, end = yr.base) %>% 
+scaler_infl <- WDI(country = 'LIC', indicator = c("NY.GDP.DEFL.KD.ZG"), start=2012, end = yr.base) %>% 
   rename(r=NY.GDP.DEFL.KD.ZG) %>% mutate(r=r/100+1) %>% group_by(country) %>% summarise(r.tot = prod(r)) %>% 
   ungroup() %>% summarise(r = mean(r.tot))
 
 # Household & NPISH share of GDP
-sh.hh.NPISH <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = "NE.CON.PRVT.ZS", start=yr.base, end = yr.base) %>% 
+sh.hh.NPISH <- WDI(country = country_selected_iso2, indicator = "NE.CON.PRVT.ZS", start=yr.base, end = yr.base) %>% 
   mutate(iso3c = countrycode(iso2c, 'iso2c', 'iso3c')) %>% mutate(sh = NE.CON.PRVT.ZS/100)
 
 # Threshold for equivalant of 1.9$/day for yr.base (2016)
@@ -69,15 +72,28 @@ ineq.IND <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma"
 ineq.IND.10 <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma", growth.r = 0.1)
 ineq.RWA <- DeriveIneqStat(result.list$RWA, dle.growth="grow", dr.type = "Palma", growth.r = last.gr$gr[last.gr$country=="Rwanda"]/100)
 
-p.list <- lapply(result.list, PlotIndiffCurve) 
-p.list.redist <- mapply(AddRedistLine, p.list, ineq.list, SIMPLIFY = FALSE) 
-p.list.redist[[1]]
-p.list.redist[[3]]
+p.list <- lapply(sc.list, PlotIndiffCurve) 
+# p.list.redist <- mapply(AddRedistLine, p.list, ineq.list, SIMPLIFY = FALSE) 
+# p.list.redist[[1]]
+# p.list.redist[[3]]
 
 ExportPDFPlot <- function(name) {
   pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"e.pdf"), width = 10, height = 6)
-  print(p.list[[name]])       # Not add the no-growth line (for 2050)
+  # print(p.list[[name]])       # Not add the no-growth line (for 2050)
   # print(p.list.redist[[name]])  # Add the no-growth line (for 2030)
+  print(p.list.shape[[name]])
   dev.off()
 }
-sapply(names(p.list.redist), ExportPDFPlot)
+# sapply(names(p.list), ExportPDFPlot)
+
+# SHAPE GDP projections ####
+# yr.target = 2040
+gdp_SHAPE <- read.csv("SHAPE_gdp.csv") %>% filter(region %in% append(country_selected_iso3, "CHA")) %>%
+  filter(!grepl('SSP', variable), period %in% c(2015, yr.target)) %>%
+  group_by(region, variable) %>%
+  mutate(r.growth = (last(value)/first(value))^(1/(yr.target-2015+1)) - 1) %>%
+  summarise(r.growth = first(r.growth))
+g.list <- split(gdp_SHAPE, (gdp_SHAPE$region))
+
+p.list.shape <- mapply(AddGrowthLine, p.list, g.list, SIMPLIFY = FALSE) 
+sapply(names(p.list.shape), ExportPDFPlot)
