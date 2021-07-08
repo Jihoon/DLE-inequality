@@ -5,3 +5,7 @@ LIS/
 .Rhistory
 *.pdf
 *.png
+
+*.db
+
+*.zip

@@ -332,7 +332,7 @@ PlotIndiffCurve <- function(cty.data) {
   
   # historical %>% left_join(master.sub) %>% filter(!is.na(gini.base))
   p = ggplot() +
-    geom_line(data=df, aes(gini.dle.calc,  growth.r, group = thres)) +
+    geom_line(data=df, aes(gini.dle.calc, growth.r, group = thres)) +
     geom_point(data=historical %>% filter(iso3c == iso), 
                aes(gini/100, gr/100, colour = recent), size=2) +
     geom_text(data=historical %>% filter(iso3c == iso), 
