@@ -1,10 +1,10 @@
 
 source("5.country_analysis.R")
 
-yr.target <- 2040 #2050 #
+yr.target <- 2030 #2050 #
 yr.base <- 2016
 
-country_selected_iso2 <- c("IN", "JP", "CN", "US")
+country_selected_iso2 <- c("IN", "JP", "CN", "US", "RW")
 country_selected_iso3 <- countrycode(country_selected_iso2, 'iso2c', 'iso3c')
 
 historical <- WDI(country = country_selected_iso2, indicator = c("NY.GDP.PCAP.KD.ZG", "SI.POV.GINI")) %>% 
@@ -78,10 +78,10 @@ p.list <- lapply(sc.list, PlotIndiffCurve)
 # p.list.redist[[3]]
 
 ExportPDFPlot <- function(name) {
-  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"e.pdf"), width = 10, height = 6)
-  # print(p.list[[name]])       # Not add the no-growth line (for 2050)
+  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"f.pdf"), width = 10, height = 6)
+  print(p.list[[name]])       # Not add the no-growth line (for 2050)
   # print(p.list.redist[[name]])  # Add the no-growth line (for 2030)
-  print(p.list.shape[[name]])
+  # print(p.list.shape[[name]])
   dev.off()
 }
 # sapply(names(p.list), ExportPDFPlot)
@@ -97,3 +97,4 @@ g.list <- split(gdp_SHAPE, (gdp_SHAPE$region))
 
 p.list.shape <- mapply(AddGrowthLine, p.list, g.list, SIMPLIFY = FALSE) 
 sapply(names(p.list.shape), ExportPDFPlot)
+sapply(names(p.list), ExportPDFPlot)

@@ -338,7 +338,7 @@ PlotIndiffCurve <- function(cty.data) {
     geom_text(data=historical %>% filter(iso3c == iso), 
               aes(gini/100 - 0.01, gr/100, label = year)) +
     labs(title=countrycode(iso, 'iso3c', 'country.name')) + scale_x_reverse() +
-    labs(x = "Gini index", y = paste("Annual average growth rate by", yr.target)) +
+    labs(x = "Gini index", y = paste("Annual average growth rate until", yr.target)) +
     scale_color_brewer(name = "Year", palette = "Set2") +
     theme(legend.position = c(.95, .95),
           legend.justification = c("right", "top")) +
