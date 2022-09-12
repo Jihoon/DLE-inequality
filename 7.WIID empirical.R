@@ -7,16 +7,18 @@ input_path = "C:/Users/min/IIASA/DLE - Documents/WS3 - Documents/DLE and inequal
 f = list.files(input_path)
 setwd(input_path)
 
-data_raw = readxl::read_xlsx(f[2])
-country_list = c("DEU", "USA", "BRA", "IND", "IDN", "ZAF", 
-                 "CAN", "GBR", "Rus", "THA")
+data_raw = readxl::read_xlsx(f[2]) %>% filter(resource != "Earnings")
+country_list = c("USA", "BRA", "IND", "IDN", "ZAF", "CHN",
+                 "RUS", "RWA")
+# country_list = c("IND", "RWA") "DEU", "THA", "CAN", "GBR", 
 
 add_suffix <- function(x) paste0(x, "_share")
 change_suffix <- function(x) gsub("_share_pcap", "_pcap", x)
+
 data_filtered = data_raw %>% 
   filter(!is.na(d1), areacovr=="All", #areacovr_detailed=="All", 
-         popcovr=="All", #reference_unit=="Household", 
-         population > 1e7) %>%
+         popcovr=="All") %>% #reference_unit=="Household", 
+         # population > 1e7) %>%
   filter(c3 %in% country_list) 
 
 data_w = data_filtered %>%
@@ -37,19 +39,25 @@ data_l = data_w %>% select(country, c3, gini, region_un, areacovr, areacovr_deta
 
 cty_count = data_filtered %>%
   group_by(country, c3, region_un, areacovr, areacovr_detailed, reference_unit,
-           resource, scale, scale_detailed, source, source_detailed, 
-           survey) %>% 
+           resource, scale, scale_detailed, source, source_detailed) %>% 
+           # survey) %>%
   count(country) %>% filter(n>1) %>% arrange(country, -n) %>%
   group_by(country) %>% slice(1)
 
 df_select = cty_count %>% left_join(data_l)
 
 # Lorenz curves by country
-p = ggplot(df_select %>% select(country, year, decile, cum_share, pcap)) +
+ggplot(df_out %>% select(country, year, decile, cum_share, cum_share_hat)) +
   # geom_line(aes(x=pcap, y=share, group=year, colour=year)) +
   geom_line(aes(x=decile, y=cum_share, group=year, colour=year)) +
-  scale_colour_gradient2(midpoint = 1999.5, mid = "green") +
-  facet_grid(~country, scales="free_x")
+  # geom_line(aes(x=decile, y=cum_share_hat, group=year, colour=year)) +
+  scale_colour_gradient2(midpoint = 1995, 
+                         low = "blue",
+                         mid = "yellow",
+                         high = "red") +
+  # facet_grid(~country, scales="free_x")
+  facet_wrap(~country, ncol=4, scales="free_x") +
+  labs(y = 'Cumulative shares of income/consumption [%]', x='Decile')
 
 # # One country
 # ggplot(df_select %>% select(country, year, decile, cum_share, cum_share_hat, pcap) %>%
@@ -66,7 +74,7 @@ ggplot(df_select %>% select(country, year, gini)) +
 #### quadratic optimization 
 # Define x1, x2 as the affine parameters -> c1_hat = c0x1 + x2
 # Then find x1 and x2 to minimize OBJ = (c1 - c0x1 - x2)•(c1 - c0x1 - x2) = (c1 - M•x)•(c1 - M•x)
-# OBJ = t(c1) %*% c1 - 2*t(c1)•M•x + t(x)•t(M)•M•x, s.t. x1 >= 0 
+# OBJ = t(c1) %*% c1 - 2*t(c1)•M•x + t(x)•t(M)•M•x, s.t. x1 >= 0, 100x1+x2=100, c01x1+x2 >= 0
 
 library(quadprog)
 library(lsa)
@@ -82,17 +90,21 @@ solve_qp = function(c1, c0) {
   # bvec = c(0, 0)
   # qp <- quadprog::solve.QP(Dmat, dvec, Amat, bvec, meq = 0)
   
-  Amat = matrix(c(100,1,1,0), nrow=2)
+  Amat = matrix(c(100,1, 1,0), nrow=2)
   bvec = c(100, 0)
+  # Amat = matrix(c(100,1, c0[1],1, 1,0), nrow=2)
+  # bvec = c(100, 0, 0)
   qp <- quadprog::solve.QP(Dmat, dvec, Amat, bvec, meq = 1)
   
-  # print(qp)
+  print(qp$value)
+  print(qp$solution)
   return(qp$solution)
 }
 
 euclidean <- function(a, b) sqrt(sum((a - b)^2))
 
-df_fy = df_select %>% select(year) %>% arrange(year) %>% slice(1) %>% rename(first_year = year)
+df_fy = df_select %>% select(year) %>% slice(which.min(abs(year - median(year)))) %>% rename(first_year = year)
+# df_fy = df_select %>% select(year) %>% arrange(year) %>% slice(1) %>% rename(first_year = year)
 df_temp = df_select %>% left_join(df_fy) %>% 
   mutate(first_year = (year == first_year)) %>%
   # mutate(first_year = (year == 2005)) %>%
@@ -117,6 +129,7 @@ df_out = df_main %>% left_join(df_param) %>%
          var_r = var(cum_share_hat-cum_share) / var(cum_share),
          dist_r = euclidean(cum_share_hat, cum_share) / euclidean(cum_share, 0)) %>%
   mutate(gini_hat = Gini(share_hat), gini_repl = Gini(share), gini_base = Gini(share_base)) %>%
+  mutate(theil_hat = Theil(share_hat), theil_repl = Theil(share), theil_base = Theil(share_base)) %>%
   mutate(gini_affine = gini_base * (mean(share_hat) - b) / mean(share_hat)) %>%
   mutate(palma_hat = share_hat[10]/sum(share_hat[1:4]), palma = share[10]/sum(share[1:4]))
   
@@ -133,24 +146,40 @@ ggplot(df_out %>% select(country, year, dist_r), aes(x=year)) +
   facet_grid(~country, scales="free_x")
 
 
-coeff = 6
-ggplot(df_out %>% select(country, year, gini, gini_hat, gini_repl, dist_r, palma_hat, palma), aes(x=year)) +
+df_plot = df_out %>% 
+  select(country, year, gini, gini_hat, gini_repl, dist_r, 
+         palma_hat, palma, theil_hat, theil_repl) %>%
+  left_join(cty_count %>% select(country, n)) %>%
+  mutate(cty.lab = paste0(country, " (", n, ")"))
+country.labs = unique(df_plot$cty.lab)
+names(country.labs) <- unique(df_plot$country)
+
+coeff = 8
+ggplot(df_plot, 
+       aes(x=year)) +
   # geom_line(aes(y=gini/100), color="green") +
-  geom_line(aes(y=gini_hat), color="blue") +
-  geom_line(aes(y=gini_repl), color="red") +
-  geom_line(aes(y=palma_hat/coeff), color="blue", linetype="dashed") +
-  geom_line(aes(y=palma/coeff), color="red", linetype="dashed") +
+  geom_line(aes(y=gini_hat, color="Estimated", linetype="Gini")) +
+  geom_line(aes(y=gini_repl, color="Observed", linetype="Gini")) +
+  # geom_line(aes(y=theil_hat/coeff), color="blue", linetype="dashed") +
+  # geom_line(aes(y=theil_repl/coeff), color="red", linetype="dashed") +
+  geom_line(aes(y=palma_hat/coeff, color="Estimated", linetype="Palma")) +
+  geom_line(aes(y=palma/coeff, color="Observed", linetype="Palma")) +
   # geom_line(aes(y=dist_r*coeff), color="darkgreen") +
   scale_y_continuous(
     
     # Features of the first axis
     name = "Gini",
+    breaks=seq(0,1,0.2),
     
     # Add a second axis and specify its features
     # sec.axis = sec_axis(~./coeff, name="Euclidean dist")
+    # sec.axis = sec_axis(~.*coeff, name="Theil")
     sec.axis = sec_axis(~.*coeff, name="Palma")
   ) +
-  facet_grid(~country, scales="free_x")
+  facet_wrap(~country, ncol=4, scales="free_x", labeller = labeller(country = country.labs)) +
+  scale_color_manual(name = "Type", values = c("Observed" = "red", "Estimated" = "blue")) +
+  scale_linetype_manual(name = "Metric", values = c("Gini" = "solid", "Palma" = "dashed"))
+  # facet_grid(~country, scales="free_x")
 
 
 
