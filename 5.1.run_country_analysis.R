@@ -66,8 +66,15 @@ ineq.list <- lapply(result.list, DeriveIneqStat, dle.growth="max", dr.type = "Pa
 # 5.4% and 4.8% taken from the manuscript (2006-2016 average)
 last.gr <- historical %>% group_by(country) %>% summarise(gr = last(gr)) # Lastest GDP p.c growth rate
 ineq.IND <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma", growth.r = last.gr$gr[last.gr$country=="India"]/100)
+ineq.IND.no <- DeriveIneqStat(result.list$IND, dle.growth="no", dr.type = "Palma")
+ineq.IND.5_4 <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma", growth.r = 0.054)
 ineq.IND.10 <- DeriveIneqStat(result.list$IND, dle.growth="grow", dr.type = "Palma", growth.r = 0.1)
+ineq.IND.max <- DeriveIneqStat(result.list$IND, dle.growth="max", dr.type = "Palma")
 ineq.RWA <- DeriveIneqStat(result.list$RWA, dle.growth="grow", dr.type = "Palma", growth.r = last.gr$gr[last.gr$country=="Rwanda"]/100)
+ineq.RWA.no <- DeriveIneqStat(result.list$RWA, dle.growth="no", dr.type = "Palma")
+ineq.RWA.4_8 <- DeriveIneqStat(result.list$RWA, dle.growth="grow", dr.type = "Palma", growth.r = 0.048)
+ineq.RWA.10 <- DeriveIneqStat(result.list$RWA, dle.growth="grow", dr.type = "Palma", growth.r = 0.1)
+ineq.RWA.max <- DeriveIneqStat(result.list$RWA, dle.growth="max", dr.type = "Palma")
 
 p.list <- lapply(result.list, PlotIndiffCurve) 
 p.list.redist <- mapply(AddRedistLine, p.list, ineq.list, SIMPLIFY = FALSE) 
@@ -75,9 +82,10 @@ p.list.redist[[1]]
 p.list.redist[[3]]
 
 ExportPDFPlot <- function(name) {
-  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"e.pdf"), width = 10, height = 6)
+  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"f.pdf"), width = 10, height = 6)
   print(p.list[[name]])       # Not add the no-growth line (for 2050)
   # print(p.list.redist[[name]])  # Add the no-growth line (for 2030)
   dev.off()
 }
 sapply(names(p.list.redist), ExportPDFPlot)
+sapply(names(p.list), ExportPDFPlot)
