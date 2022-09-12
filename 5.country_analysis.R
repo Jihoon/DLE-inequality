@@ -328,12 +328,19 @@ PlotIndiffCurve <- function(cty.data) {
     mutate(gini.dle.calc = gini.base * (avg.new - thres) / avg.new)  
   
   # historical %>% left_join(master.sub) %>% filter(!is.na(gini.base))
-  p = ggplot() +
+  df.hist = historical %>% filter(iso3c == iso) %>%
+    mutate(gini = gini/100, gr = gr/100)
+  p = ggplot(data=df.hist, aes(x=gini, y=gr)) +
     geom_line(data=df, aes(gini.dle.calc,  growth.r, group = thres)) +
-    geom_point(data=historical %>% filter(iso3c == iso), 
-               aes(gini/100, gr/100, colour = recent), size=2) +
-    geom_text(data=historical %>% filter(iso3c == iso), 
-              aes(gini/100 - 0.01, gr/100, label = year)) +
+    geom_point(aes(colour = recent), size=2) +
+    geom_text_repel(aes(label = year)) +
+    geom_segment(color="#69b3a2", 
+                 aes(
+                   xend=c(tail(gini, n=-1), NA), 
+                   yend=c(tail(gr, n=-1), NA)
+                 ),
+                 arrow=arrow(length=unit(0.2,"cm"))
+    ) +
     labs(title=countrycode(iso, 'iso3c', 'country.name')) + scale_x_reverse() +
     labs(x = "Gini index", y = "Annual average growth rate") +
     scale_color_brewer(name = "Year", palette = "Set2") +
@@ -341,7 +348,7 @@ PlotIndiffCurve <- function(cty.data) {
           legend.justification = c("right", "top")) +
     # Add threshold value labels
     geom_dl(data=df, aes(gini.dle.calc,  growth.r, 
-                         label = paste0('$', format(thres/365, digits=2), '/day')), 
+                         label = paste0('$', format(thres/365, digits=2, nsmall=1), '/day')), 
             method = list("last.points", dl.trans(x=x-1.2, y=y+0.5)), cex = 0.7) +
     ylim(ylim_vals)
   
