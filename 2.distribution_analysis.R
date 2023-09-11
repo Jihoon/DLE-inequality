@@ -77,7 +77,13 @@ for (i in 1:length(sc)) {
 # Function to introduce the shift (X-axis) - only for log-normal
 ShiftVector <- function(v, shift) {
   shift = as.integer(shift)
-  xshift = c(rep(NA, shift),  v[1:(length(v)-shift)])
+  if (is.numeric(v)) {
+    len = length(v)
+  }
+  else {
+    len = nrow(V)
+  }
+  xshift = c(rep(NA, shift),  v[1:(len - shift)])
   return(xshift)
 }
 

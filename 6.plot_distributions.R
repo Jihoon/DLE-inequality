@@ -1,8 +1,12 @@
 # Data for India from the analysis from 5.1
 # Plot this for more illustrative threshold = gdp.thres
-df.plot <- df.list$IND$df %>% select(x0, y0, y107, y101, y96, y92) 
-df.data <- df.list$IND$data
-df.sc <- df.list$IND$sc[c(107, 101, 96, 92)]
+
+iso3 = "IND"
+df.country <- df.list[[iso3]]
+
+df.plot <- df.country$df %>% select(x0, y0, y107, y101, y96, y92) 
+df.data <- df.country$data
+df.sc <- df.country$sc[c(107, 101, 96, 92)]
 names(df.sc) # corresponding gini values
 # g = df.data$gini.base * df.sc * df.data$avg.base / (df.sc * df.data$avg.base + df.data$dle.thres)
 growth.r <- (((df.sc * df.data$avg.base + df.data$dle.thres) / df.data$avg.base) ^(1/(yr.target-yr.base)) - 1)*100
@@ -16,7 +20,9 @@ gtext = data.frame(xv = apply(df.plot[-1], 2, function(x){df.plot$x0[which(x==ma
 
 
 # Export to PDF
-pdf(file = paste0("plots/India GINI illustration-", distr, " ", yr.target, "b.pdf"), width = 10, height = 6)
+library(scales)
+cty.name = countrycode(iso3, 'iso3c', 'country.name')
+pdf(file = paste0("plots/", cty.name," GINI illustration-", distr, " ", yr.target, "b.pdf"), width = 10, height = 6)
 
 df.plot.l <- df.plot %>%  pivot_longer(-x0, names_to="dist") %>%
   mutate(type = ifelse(dist=="y0", "base", "new")) # For line type setting
@@ -28,7 +34,11 @@ ggplot(df.plot.l, aes(x=x0, y=value, color=dist)) +
   geom_vline(xintercept = df.data$dle.thres, linetype="dashed", colour="brown") +
   geom_text(aes(x=df.data$dle.thres, label=paste0("Desired minimum : $", format(df.data$dle.thres/365, digits=2), "/day", "\n"), y=1e-4), 
             colour="brown", hjust=0.0, angle=90, size=4.5) +
-  labs(x="GDP per capita ($/cap)", y="Density (population share)")+
+  labs(
+    x="GDP per capita ($/cap)", 
+    y="Density (population share)", 
+    title=cty.name,
+    label_scientific(digits = 2)) +
   geom_text(data=gtext, aes(x=xv, label=lab, y=yv, colour=dist), size=4, hjust=0.0, vjust=0.0, parse=TRUE) +
   theme(legend.position = "none") 
 

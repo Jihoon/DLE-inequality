@@ -2,7 +2,7 @@ library(readxl)
 library(tidyverse)
 library(ggplot2)
 
-input_path = "C:/Users/min/IIASA/DLE - Documents/WS3 - Documents/DLE and inequality/data/WIID 2022/"
+input_path = "C:/Users/min/IIASA/DLE - DLE and inequality/data/WIID 2022/"
 
 f = list.files(input_path)
 setwd(input_path)
@@ -47,9 +47,9 @@ cty_count = data_filtered %>%
 df_select = cty_count %>% left_join(data_l)
 
 # Lorenz curves by country
-ggplot(df_out %>% select(country, year, decile, cum_share, cum_share_hat)) +
-  # geom_line(aes(x=pcap, y=share, group=year, colour=year)) +
-  geom_line(aes(x=decile, y=cum_share, group=year, colour=year)) +
+ggplot(df_out %>% select(country, year, decile, share, cum_share, cum_share_hat)) +
+  geom_line(aes(x=decile, y=share, group=year, colour=year)) +
+  # geom_line(aes(x=decile, y=cum_share, group=year, colour=year)) +
   # geom_line(aes(x=decile, y=cum_share_hat, group=year, colour=year)) +
   scale_colour_gradient2(midpoint = 1995, 
                          low = "blue",
@@ -57,7 +57,8 @@ ggplot(df_out %>% select(country, year, decile, cum_share, cum_share_hat)) +
                          high = "red") +
   # facet_grid(~country, scales="free_x")
   facet_wrap(~country, ncol=4, scales="free_x") +
-  labs(y = 'Cumulative shares of income/consumption [%]', x='Decile')
+  # labs(y = 'Cumulative shares of income/consumption [%]', x='Decile')
+  labs(y = 'Decile shares among total income/consumption [%]', x='Decile')
 
 # # One country
 # ggplot(df_select %>% select(country, year, decile, cum_share, cum_share_hat, pcap) %>%

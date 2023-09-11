@@ -299,7 +299,7 @@ PlotCountry <- function(cty.data) {
 
 PlotIndiffCurve <- function(cty.data) {
   library(directlabels)
-  
+  library(ggrepel)
   gini.base  = cty.data$input$data$gini.base/100  # WDI has pct values.
   avg.base   = cty.data$input$data$avg.base  
   min.base   = cty.data$input$data$min.base  

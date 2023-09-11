@@ -1,26 +1,32 @@
 
 source("5.country_analysis.R")
 
-yr.target <- 2030 #2050 #
+yr.target <- 2050 #2030 #
 yr.base <- 2016
 
-historical <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = c("NY.GDP.PCAP.KD.ZG", "SI.POV.GINI")) %>% 
-  mutate(iso3c = countrycode(iso2c, 'iso2c', 'iso3c'))  %>% rename(gr = NY.GDP.PCAP.KD.ZG, gini = SI.POV.GINI) %>% 
+clist = c("IN", "RW") #c("IN", "NE", "RW", "ZA")
+
+historical <- WDI(country = clist, indicator = c("NY.GDP.PCAP.KD.ZG", "SI.POV.GINI")) %>% 
+  mutate(iso3c = countrycode(iso2c, 'iso2c', 'iso3c'))  %>% 
+  rename(gr = NY.GDP.PCAP.KD.ZG, gini = SI.POV.GINI) %>% 
   filter(year <= yr.base) %>%
   group_by(iso3c) 
 
 historical <- historical %>%
   filter(!is.na(gini)) %>%
-  rbind(historical %>% filter(iso3c=="IND", year==yr.base) %>% mutate(gini=37.8)) %>%
+  # rbind(historical %>% filter(iso3c=="IND", year==yr.base) %>% mutate(gini=37.8)) %>%
   mutate(recent = ifelse(year == max(year), "Latest", "Past")) %>%
-  arrange(country) # %>% mutate(recent = factor(recent, levels=c("Latest", "Past", "Assumed")))
-  
-
+  filter(year<=2016) %>%
+  arrange(country) %>% # %>% mutate(recent = factor(recent, levels=c("Latest", "Past", "Assumed"))) 
+  mutate(gini = ifelse(iso3c=="IND" & (year==2016| year==2011), 37.8, gini)) %>% # 37.8 provided by NR
+  filter(year!=2015)
 
 ####
 
 # Harmonize the base year for gdp.pcap to yr.base
-gdp.pcap.base <- raw.gdp.pcap %>% filter(iso3c %in% c('RWA', 'NER', 'IND', 'ZAF', 'LIC'), year == yr.base) %>%
+gdp.pcap.base <- raw.gdp.pcap %>% 
+  filter(iso3c %in% c('RWA', 'IND', 'LIC'), year == yr.base) %>%
+  # filter(iso3c %in% c('RWA', 'NER', 'IND', 'ZAF', 'LIC'), year == yr.base) %>%
   rename(avg.base=GDP.PCAP) %>% select(-region, -country)
 
 # Threshold for average of 'low income' country groups
@@ -31,7 +37,7 @@ scaler_infl <- WDI(country = c("IN", "RW"), indicator = c("NY.GDP.DEFL.KD.ZG"), 
   ungroup() %>% summarise(r = mean(r.tot))
 
 # Household & NPISH share of GDP
-sh.hh.NPISH <- WDI(country = c("IN", "NE", "RW", "ZA"), indicator = "NE.CON.PRVT.ZS", start=yr.base, end = yr.base) %>% 
+sh.hh.NPISH <- WDI(country = clist, indicator = "NE.CON.PRVT.ZS", start=yr.base, end = yr.base) %>% 
   mutate(iso3c = countrycode(iso2c, 'iso2c', 'iso3c')) %>% mutate(sh = NE.CON.PRVT.ZS/100)
 
 # Threshold for equivalant of 1.9$/day for yr.base (2016)
@@ -79,10 +85,10 @@ ineq.RWA.max <- DeriveIneqStat(result.list$RWA, dle.growth="max", dr.type = "Pal
 p.list <- lapply(result.list, PlotIndiffCurve) 
 p.list.redist <- mapply(AddRedistLine, p.list, ineq.list, SIMPLIFY = FALSE) 
 p.list.redist[[1]]
-p.list.redist[[3]]
+p.list.redist[[2]]
 
 ExportPDFPlot <- function(name) {
-  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"f.pdf"), width = 10, height = 6)
+  pdf(file = paste0("plots/Growth-Gini plot ", name, " ",  yr.target,"g.pdf"), width = 10, height = 6)
   print(p.list[[name]])       # Not add the no-growth line (for 2050)
   # print(p.list.redist[[name]])  # Add the no-growth line (for 2030)
   dev.off()

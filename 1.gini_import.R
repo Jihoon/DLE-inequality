@@ -33,13 +33,15 @@ raw.wiid <- read_xlsx("WIID_19Dec2018.xlsx") %>% filter(source_comments == "Povc
 raw.gdp.pcap <- WDI(country = "all", indicator = "NY.GDP.PCAP.PP.KD", 
                     start = 1990, end = 2019, extra = TRUE, cache = NULL) %>%
   # filter(region!="Aggregates") %>% 
-  select(-iso2c, -(capital:lending)) 
-names(raw.gdp.pcap)[2] <- 'GDP.PCAP'
+  select(-iso2c, -(capital:lending)) %>% 
+  rename(GDP.PCAP=NY.GDP.PCAP.PP.KD)
+# names(raw.gdp.pcap)[2] <- 'GDP.PCAP'
 
 raw.pop <- WDI(country = "all", indicator = "SP.POP.TOTL", 
                start = 1990, end = 2019, extra = TRUE, cache = NULL) %>%
-  filter(region!="Aggregates") %>% select(-iso2c, -(capital:lending)) 
-names(raw.pop)[2] <- 'Population'
+  filter(region!="Aggregates") %>% select(-iso2c, -(capital:lending)) %>%
+  rename(Population = SP.POP.TOTL)
+# names(raw.pop)[4] <- 'Population'
 
 
 ### Construct master DF
